@@ -30,7 +30,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { isFirebaseConfigured } from "./firebaseConfig.js";
+import { isFirebaseConfigured } from "firebaseConfig.js";
 
 /* ---------------------------------------------------------------------- */
 /* Konstanten & Inhalte                                                    */
