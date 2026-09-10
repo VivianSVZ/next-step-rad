@@ -17,7 +17,7 @@ import {
   collection,
   getDocs,
 } from "firebase/firestore";
-import { firebaseConfig, isFirebaseConfigured } from "./firebaseConfig.js";
+import { firebaseConfig, isFirebaseConfigured } from "firebaseConfig.js";
 
 const LOCAL_PREFIX = "nsr:";
 
