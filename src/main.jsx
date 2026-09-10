@@ -1,6 +1,6 @@
 // Polyfill zuerst importieren, damit window.storage bereitsteht, bevor App
 // beim Mounten die erste Abfrage macht.
-import "storage-polyfill.js";
+import "./storage-polyfill.js";
 
 import React from "react";
 import ReactDOM from "react-dom/client";
