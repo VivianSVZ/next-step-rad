@@ -110,7 +110,7 @@ const AREA_META = {
 const WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
 const VERSE =
-  "Liebe Gott (Glaube) und deinen Nächsten (Beziehungen), wie dich selbst (Gesundheit) mit allem was dir gegeben wurde (Ressourcen) und dort wo du hingestellt wurdest (Arbeit).";
+  "Liebe Gott (Glaube), deine Mitmenschen (Beziehungen) wie dich selbst (Gesundheit), mit allem was dir gegeben wurde (Ressourcen), dort wo du hingestellt wurdest (Arbeit).";
 
 /* ---------------------------------------------------------------------- */
 /* Hilfsfunktionen                                                         */
@@ -1276,7 +1276,7 @@ export default function NextStepRad() {
       </header>
 
       {menuOpen && (
-        <div className="nsr-overlay" onClick={() => setMenuOpen(false)}>
+        <div className="nsr-overlay nsr-overlay-left" onClick={() => setMenuOpen(false)}>
           <nav className="nsr-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="nsr-drawer-header">
               <span className="nsr-topbar-title">Menü</span>
@@ -1577,6 +1577,12 @@ const STYLES = `
 .nsr-color-row span { flex: 1; font-size: 14px; }
 .nsr-color-row input[type=color] { width: 34px; height: 28px; border: none; background: none; cursor: pointer; }
 
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #F3EFE4;
+}
+
 .nsr-overlay {
   position: fixed;
   inset: 0;
@@ -1586,6 +1592,7 @@ const STYLES = `
   justify-content: center;
   z-index: 20;
 }
+.nsr-overlay-left { justify-content: flex-start; }
 .nsr-drawer {
   background: var(--nsr-surface);
   width: 78%;
