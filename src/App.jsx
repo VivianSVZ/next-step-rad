@@ -110,7 +110,7 @@ const AREA_META = {
 const WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
 const VERSE =
-  "Liebe Gott (Glaube), deine Mitmenschen (Beziehungen) wie dich selbst (Gesundheit), mit allem was dir gegeben wurde (Ressourcen), dort wo du hingestellt wurdest (Arbeit).";
+  "Liebe Gott (Glaube) und deinen Nächsten (Beziehungen), wie dich selbst (Gesundheit) mit allem was dir gegeben wurde (Ressourcen) und dort wo du hingestellt wurdest (Arbeit).";
 
 /* ---------------------------------------------------------------------- */
 /* Hilfsfunktionen                                                         */
