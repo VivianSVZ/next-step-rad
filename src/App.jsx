@@ -1331,7 +1331,7 @@ export default function NextStepRad() {
               {hasCheckedInThisWeek ? "Diese Woche erneut bewerten" : "Diese Woche bewerten"}
             </button>
             <p className="nsr-hint nsr-center">1. Bewertung: Du schätzt jeden Bereich für dich persönlich auf einer Skala von 1 bis 10 ein. <br></br>2. Reflexion: Das Rad hilft dir zu erkennen, wo du stehst, wo es gut läuft und wo du Unterstützung brauchst.</p>
-            <p className="nsr-hint nsr-center">Tipp: Tippe auf einen Bereich im Rad für Hintergrund und Leitfragen.</p>
+            <p className="nsr-hint nsr-center">Tipp: Tippe auf einen Bereich im Rad für Erklärungen und Leitfragen.</p>
           </div>
         )}
 
