@@ -128,6 +128,13 @@ function generateGroupCode() {
   return code;
 }
 
+function generateSyncCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
 function normalizeCode(raw) {
   return (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
 }
@@ -629,8 +636,19 @@ function HistoryView({ entries, colors }) {
 /* Einstellungen                                                          */
 /* ---------------------------------------------------------------------- */
 
-function SettingsView({ profile, updateProfile, onResetColors, onResetData }) {
+function SettingsView({
+  profile,
+  updateProfile,
+  onResetColors,
+  onResetData,
+  onStartSync,
+  onConnectSync,
+  onStopSync,
+  syncBusy,
+  syncError,
+}) {
   const [name, setName] = useState(profile.name || "");
+  const [syncCodeInput, setSyncCodeInput] = useState("");
 
   useEffect(() => {
     setName(profile.name || "");
@@ -651,45 +669,6 @@ function SettingsView({ profile, updateProfile, onResetColors, onResetData }) {
           onChange={(e) => setName(e.target.value)}
           onBlur={() => updateProfile({ name })}
         />
-      </div>
-
-      <div className="nsr-card">
-        <p className="nsr-sheet-subhead">Wöchentliche Erinnerung</p>
-        <div className="nsr-switch-row">
-          <div>
-            <p className="nsr-switch-label">Erinnerung aktivieren</p>
-            <p className="nsr-hint">
-              Als Web-App kann dir dein Browser nur eine Benachrichtigung zeigen, wenn du die App gerade
-              geöffnet hast – ein Hintergrund-Push wie bei einer nativen Kalender-App ist technisch nicht
-              möglich. Zusätzlich siehst du ein Banner in der App, sobald dein Wochentag erreicht ist.
-            </p>
-          </div>
-          <label className="nsr-switch">
-            <input
-              type="checkbox"
-              checked={!!profile.notifyEnabled}
-              onChange={(e) => updateProfile({ notifyEnabled: e.target.checked }, true)}
-            />
-            <span className="nsr-switch-slider" />
-          </label>
-        </div>
-        {profile.notifyEnabled && (
-          <div className="nsr-field-row">
-            <label htmlFor="nsr-weekday">Ab welchem Wochentag erinnern?</label>
-            <select
-              id="nsr-weekday"
-              className="nsr-select"
-              value={profile.reminderWeekday}
-              onChange={(e) => updateProfile({ reminderWeekday: Number(e.target.value) })}
-            >
-              {WEEKDAYS.map((w, i) => (
-                <option key={w} value={i}>
-                  {w}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       <div className="nsr-card">
@@ -718,6 +697,76 @@ function SettingsView({ profile, updateProfile, onResetColors, onResetData }) {
             </div>
           );
         })}
+      </div>
+
+      <div className="nsr-card">
+        <p className="nsr-sheet-subhead">Geräte-Synchronisierung</p>
+        {!isFirebaseConfigured ? (
+          <p className="nsr-hint">
+            Braucht denselben kostenlosen Firebase-Speicher wie die Gruppen-Funktion. Trag deine
+            Zugangsdaten in <code>src/firebaseConfig.js</code> ein, dann erscheint hier ein Sync-Code.
+          </p>
+        ) : profile.syncCode ? (
+          <>
+            <p className="nsr-hint">
+              Auf deinem neuen Gerät: App öffnen → Einstellungen → diesen Code eingeben. Deine Daten
+              werden dann übernommen und beide Geräte gleichen sich ab.
+            </p>
+            <div className="nsr-code-card" style={{ marginTop: 10 }}>
+              <div className="nsr-code-info">
+                <p className="nsr-hint" style={{ margin: 0 }}>
+                  Dein Sync-Code
+                </p>
+                <p className="nsr-group-name">{profile.syncCode}</p>
+              </div>
+              <div className="nsr-code-actions">
+                <button
+                  className="nsr-icon-btn"
+                  title="Code kopieren"
+                  onClick={() => {
+                    if (navigator.clipboard) navigator.clipboard.writeText(profile.syncCode);
+                  }}
+                >
+                  <Copy size={18} />
+                </button>
+              </div>
+            </div>
+            <button className="nsr-btn nsr-btn-ghost" style={{ marginTop: 12 }} onClick={onStopSync}>
+              Sync beenden
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="nsr-hint">
+              Erstelle einen persönlichen Code, um deine Bewertungen und Next Steps auf ein neues Gerät zu
+              übertragen. Wer den Code kennt, kommt an deine Daten – also gut aufbewahren.
+            </p>
+            <button className="nsr-btn nsr-btn-primary" style={{ marginTop: 6 }} onClick={onStartSync} disabled={syncBusy}>
+              {syncBusy ? "Einen Moment …" : "Sync-Code erstellen"}
+            </button>
+            <p className="nsr-hint" style={{ marginTop: 16 }}>
+              Hast du schon einen Code von einem anderen Gerät?
+            </p>
+            <div className="nsr-field-row">
+              <input
+                type="text"
+                className="nsr-input"
+                placeholder="z. B. AB12CD34"
+                value={syncCodeInput}
+                onChange={(e) => setSyncCodeInput(e.target.value)}
+                maxLength={12}
+              />
+              <button
+                className="nsr-btn nsr-btn-secondary"
+                disabled={!syncCodeInput.trim() || syncBusy}
+                onClick={() => onConnectSync(syncCodeInput)}
+              >
+                Übernehmen
+              </button>
+            </div>
+          </>
+        )}
+        {syncError && <p className="nsr-error">{syncError}</p>}
       </div>
 
       <div className="nsr-card">
@@ -968,6 +1017,8 @@ export default function NextStepRad() {
     loading: false,
     error: "",
   });
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncError, setSyncError] = useState("");
 
   const [dismissedWeek, setDismissedWeek] = useState(null);
 
@@ -994,10 +1045,31 @@ export default function NextStepRad() {
           /* Historie beschädigt, leer starten */
         }
       }
+      if (p.syncCode) {
+        const rawSyncProfile = await storageGet("sync:" + p.syncCode + ":profile", true);
+        const rawSyncEntries = await storageGet("sync:" + p.syncCode + ":entries", true);
+        if (rawSyncProfile) {
+          try {
+            const parsed = JSON.parse(rawSyncProfile);
+            p = { ...p, ...parsed, syncCode: p.syncCode, colors: { ...p.colors, ...(parsed.colors || {}) } };
+          } catch (err) {
+            /* Sync-Profil beschädigt, lokale Version behalten */
+          }
+        }
+        if (rawSyncEntries) {
+          try {
+            const parsed = JSON.parse(rawSyncEntries);
+            if (Array.isArray(parsed)) e = parsed;
+          } catch (err) {
+            /* Sync-Historie beschädigt, lokale Version behalten */
+          }
+        }
+      }
       setProfile(p);
       setEntries(e);
       setLoaded(true);
       await storageSet("profile", JSON.stringify(p), false);
+      await storageSet("entries", JSON.stringify(e), false);
     })();
   }, []);
 
@@ -1021,8 +1093,7 @@ export default function NextStepRad() {
         /* Benachrichtigung fehlgeschlagen, ignorieren */
       }
       const updated = { ...profile, lastNotifiedWeek: currentWeekId };
-      setProfile(updated);
-      storageSet("profile", JSON.stringify(updated), false);
+      persistProfile(updated);
     }
   }, [loaded, profile.notifyEnabled, dueForCheckin, currentWeekId]);
 
@@ -1078,6 +1149,23 @@ export default function NextStepRad() {
     return () => clearInterval(interval);
   }, [view, profile.groupCode, loadGroupData]);
 
+  /* --- Persönliche Daten speichern (lokal + optional Sync) --- */
+  async function persistProfile(updated) {
+    setProfile(updated);
+    await storageSet("profile", JSON.stringify(updated), false);
+    if (updated.syncCode) {
+      await storageSet("sync:" + updated.syncCode + ":profile", JSON.stringify(updated), true);
+    }
+  }
+
+  async function persistEntries(updatedEntries) {
+    setEntries(updatedEntries);
+    await storageSet("entries", JSON.stringify(updatedEntries), false);
+    if (profile.syncCode) {
+      await storageSet("sync:" + profile.syncCode + ":entries", JSON.stringify(updatedEntries), true);
+    }
+  }
+
   /* --- Profil aktualisieren + persistieren --- */
   async function updateProfile(patch, isNotifyToggle) {
     let updated = { ...profile, ...patch };
@@ -1089,8 +1177,7 @@ export default function NextStepRad() {
         /* Berechtigung nicht erteilt, still fortfahren */
       }
     }
-    setProfile(updated);
-    await storageSet("profile", JSON.stringify(updated), false);
+    await persistProfile(updated);
   }
 
   function resetColors() {
@@ -1101,9 +1188,66 @@ export default function NextStepRad() {
 
   async function resetAllData() {
     if (!window.confirm("Wirklich alle gespeicherten Bewertungen und Next Steps löschen?")) return;
-    setEntries([]);
-    await storageSet("entries", JSON.stringify([]), false);
+    await persistEntries([]);
     setToast("Daten gelöscht");
+  }
+
+  /* --- Geräte-Synchronisierung (persönlicher Sync-Code) --- */
+  async function startSync() {
+    setSyncBusy(true);
+    setSyncError("");
+    const code = generateSyncCode();
+    const updated = { ...profile, syncCode: code };
+    await persistProfile(updated);
+    await storageSet("sync:" + code + ":entries", JSON.stringify(entries), true);
+    setSyncBusy(false);
+  }
+
+  async function connectSync(rawCode) {
+    const code = normalizeCode(rawCode);
+    if (!code) return;
+    setSyncBusy(true);
+    setSyncError("");
+    const rawSyncProfile = await storageGet("sync:" + code + ":profile", true);
+    const rawSyncEntries = await storageGet("sync:" + code + ":entries", true);
+    let remoteProfile = null;
+    let remoteEntries = null;
+    if (rawSyncProfile) {
+      try {
+        remoteProfile = JSON.parse(rawSyncProfile);
+      } catch (e) {
+        remoteProfile = null;
+      }
+    }
+    if (rawSyncEntries) {
+      try {
+        remoteEntries = JSON.parse(rawSyncEntries);
+      } catch (e) {
+        remoteEntries = null;
+      }
+    }
+    if (!remoteProfile && !remoteEntries) {
+      setSyncError("Kein Sync-Code mit gespeicherten Daten gefunden. Bitte Code prüfen.");
+      setSyncBusy(false);
+      return;
+    }
+    const merged = {
+      ...profile,
+      ...(remoteProfile || {}),
+      syncCode: code,
+      colors: { ...profile.colors, ...((remoteProfile && remoteProfile.colors) || {}) },
+    };
+    const mergedEntries = Array.isArray(remoteEntries) ? remoteEntries : entries;
+    setProfile(merged);
+    setEntries(mergedEntries);
+    await storageSet("profile", JSON.stringify(merged), false);
+    await storageSet("entries", JSON.stringify(mergedEntries), false);
+    setSyncBusy(false);
+    setToast("Daten übernommen");
+  }
+
+  async function stopSync() {
+    await persistProfile({ ...profile, syncCode: null });
   }
 
   /* --- Check-in Flow --- */
@@ -1131,8 +1275,7 @@ export default function NextStepRad() {
     const newEntries = [...entries.filter((e) => e.weekId !== weekId), entry].sort((a, b) =>
       a.weekId.localeCompare(b.weekId)
     );
-    setEntries(newEntries);
-    await storageSet("entries", JSON.stringify(newEntries), false);
+    await persistEntries(newEntries);
 
     if (profile.groupCode && shareWithGroup) {
       await storageSet(
@@ -1148,8 +1291,7 @@ export default function NextStepRad() {
     }
 
     const updatedProfile = { ...profile, lastNotifiedWeek: weekId };
-    setProfile(updatedProfile);
-    await storageSet("profile", JSON.stringify(updatedProfile), false);
+    await persistProfile(updatedProfile);
 
     setSaving(false);
     setCheckinOpen(false);
@@ -1188,8 +1330,7 @@ export default function NextStepRad() {
       }
     }
     const updated = { ...profile, groupCode: code };
-    setProfile(updated);
-    await storageSet("profile", JSON.stringify(updated), false);
+    await persistProfile(updated);
     loadGroupData(code);
   }
 
@@ -1208,8 +1349,7 @@ export default function NextStepRad() {
       }
     }
     const updated = { ...profile, groupCode: null };
-    setProfile(updated);
-    await storageSet("profile", JSON.stringify(updated), false);
+    await persistProfile(updated);
     setGroupState({ members: [], chat: [], name: "", loading: false, error: "" });
   }
 
@@ -1331,7 +1471,7 @@ export default function NextStepRad() {
               {hasCheckedInThisWeek ? "Diese Woche erneut bewerten" : "Diese Woche bewerten"}
             </button>
             <p className="nsr-hint nsr-center">1. Bewertung: Du schätzt jeden Bereich für dich persönlich auf einer Skala von 1 bis 10 ein. <br></br>2. Reflexion: Das Rad hilft dir zu erkennen, wo du stehst, wo es gut läuft und wo du Unterstützung brauchst.</p>
-            <p className="nsr-hint nsr-center">Tipp: Tippe auf einen Bereich im Rad für Erklärungen und Leitfragen.</p>
+            <p className="nsr-hint nsr-center">Tipp: Tippe auf einen Bereich im Rad für Erklärungen und Leitfragen.</p>          
           </div>
         )}
 
@@ -1343,6 +1483,11 @@ export default function NextStepRad() {
             updateProfile={updateProfile}
             onResetColors={resetColors}
             onResetData={resetAllData}
+            onStartSync={startSync}
+            onConnectSync={connectSync}
+            onStopSync={stopSync}
+            syncBusy={syncBusy}
+            syncError={syncError}
           />
         )}
 
