@@ -1719,7 +1719,19 @@ const STYLES = `
 .nsr-color-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--nsr-border); }
 .nsr-color-row:first-of-type { border-top: none; }
 .nsr-color-row span { flex: 1; font-size: 14px; }
-.nsr-color-row input[type=color] { width: 34px; height: 28px; border: none; background: none; cursor: pointer; }
+.nsr-color-row input[type=color] {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+.nsr-color-row input[type=color]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+.nsr-color-row input[type=color]::-webkit-color-swatch { border: none; border-radius: 50%; }
+.nsr-color-row input[type=color]::-moz-color-swatch { border: none; border-radius: 50%; }
 
 html, body {
   margin: 0;
