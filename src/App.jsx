@@ -19,6 +19,7 @@ import {
   UserPlus,
   LogIn,
   ChevronRight,
+  ChevronDown,
   Pencil,
 } from "lucide-react";
 import {
@@ -1018,6 +1019,7 @@ export default function NextStepRad() {
   });
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncError, setSyncError] = useState("");
+  const [showAnleitung, setShowAnleitung] = useState(false);
 
   const [dismissedWeek, setDismissedWeek] = useState(null);
 
@@ -1472,10 +1474,22 @@ export default function NextStepRad() {
               {hasCheckedInThisWeek ? "Diese Woche erneut bewerten" : "Diese Woche bewerten"}
             </button>
             
-            <p className="nsr-hint nsr-center">1. Bewertung: Du schätzt jeden Bereich für dich persönlich auf einer Skala von 0 bis 10 ein. 
-              <br></br>2. Reflexion: Das Rad hilft dir zu erkennen, wo du stehst, wo es gut läuft und wo du Unterstützung brauchst.
-              <br></br>3. Next Step: Suche dir einen Bereich, in den du diese Woche besonders investieren möchtest und einen Next Step machen willst.
-            </p>    
+            <button
+              type="button"
+              className="nsr-anleitung-toggle"
+              onClick={() => setShowAnleitung((v) => !v)}
+              aria-expanded={showAnleitung}
+            >
+              <span>Anleitung</span>
+              <ChevronDown size={16} className={showAnleitung ? "nsr-chevron-open" : ""} />
+            </button>
+            {showAnleitung && (
+              <div className="nsr-anleitung-body">
+                <p>1. Bewertung: Du schätzt jeden Bereich für dich persönlich auf einer Skala von 0 bis 10 ein.</p>
+                <p>2. Reflexion: Das Rad hilft dir zu erkennen, wo du stehst, wo es gut läuft und wo du Unterstützung brauchst.</p>
+                <p>3. Next Step: Suche dir einen Bereich, in den du diese Woche besonders investieren möchtest und einen Next Step machen willst.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1679,6 +1693,30 @@ const STYLES = `
 .nsr-btn-ghost { background: transparent; color: var(--nsr-ink); border-color: var(--nsr-border); }
 .nsr-btn-danger { background: transparent; color: var(--nsr-danger); border-color: var(--nsr-danger); }
 .nsr-btn-wide { width: 100%; margin-top: 14px; }
+
+.nsr-anleitung-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px auto 0;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--nsr-ink-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nsr-anleitung-toggle svg { transition: transform 0.2s ease; }
+.nsr-anleitung-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.nsr-anleitung-body {
+  text-align: left;
+  max-width: 360px;
+  margin: 4px auto 0;
+  padding: 2px 6px 0;
+}
+.nsr-anleitung-body p { font-size: 12.5px; color: var(--nsr-ink-muted); line-height: 1.55; margin: 8px 0; }
 
 .nsr-hint { font-size: 12.5px; color: var(--nsr-ink-muted); line-height: 1.5; }
 .nsr-center { text-align: center; }
