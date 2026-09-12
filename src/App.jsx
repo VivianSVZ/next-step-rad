@@ -739,7 +739,7 @@ function SettingsView({
           <>
             <p className="nsr-hint">
               Erstelle einen persönlichen Code, um deine Bewertungen und Next Steps auf ein neues Gerät zu
-              übertragen. Wer den Code kennt, kommt an deine Daten – also gut aufbewahren.
+              übertragen.
             </p>
             <button className="nsr-btn nsr-btn-primary" style={{ marginTop: 6 }} onClick={onStartSync} disabled={syncBusy}>
               {syncBusy ? "Einen Moment …" : "Sync-Code erstellen"}
@@ -806,9 +806,8 @@ function GroupsView({ profile, colors, onCreateGroup, onJoinGroup, onLeaveGroup,
       <div className="nsr-view">
         <h2 className="nsr-view-title">Gruppen</h2>
         <p className="nsr-hint" style={{ marginBottom: 18 }}>
-          Bildet zusammen eine kleine Gruppe (z. B. euren Hauskreis) und ermutigt euch gegenseitig bei euren
-          Next Steps. Jede Person mit dem Gruppen-Code sieht die Räder und Next Steps der Gruppe – wählt den
-          Code also mit Bedacht und teilt ihn nur mit Menschen, denen ihr vertraut.
+          Bildet zusammen eine kleine Gruppe (z. B. mit eurer Smallgroup), teilt eure Bewertungen der Lebensbereiche und ermutigt euch gegenseitig bei euren
+          Next Steps.
         </p>
 
         <div className="nsr-card">
@@ -948,7 +947,7 @@ function GroupsView({ profile, colors, onCreateGroup, onJoinGroup, onLeaveGroup,
         Ermutigungs-Chat
       </p>
       <p className="nsr-hint" style={{ marginTop: -6, marginBottom: 10 }}>
-        Nachrichten werden gespeichert und bei allen Mitgliedern automatisch alle paar Sekunden aktualisiert.
+        Schreibt euch Bibelverse oder kleine Ermutigungen zu euren Next Steps.
       </p>
       <div className="nsr-card nsr-chat-card">
         <div className="nsr-chat-scroll">
