@@ -1474,7 +1474,7 @@ export default function NextStepRad() {
             
             <p className="nsr-hint nsr-center">1. Bewertung: Du schätzt jeden Bereich für dich persönlich auf einer Skala von 0 bis 10 ein. 
               <br></br>2. Reflexion: Das Rad hilft dir zu erkennen, wo du stehst, wo es gut läuft und wo du Unterstützung brauchst.
-              <br></br>3. Next Step: Suche dir einen Bereich, in die du diese Woche besonders investierst und einen next step machen willst.
+              <br></br>3. Next Step: Suche dir einen Bereich, in den du diese Woche besonders investieren möchtest und einen Next Step machen willst.
             </p>    
           </div>
         )}
