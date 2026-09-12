@@ -1738,7 +1738,7 @@ const STYLES = `
 .nsr-input, .nsr-select, .nsr-textarea {
   width: 100%;
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   padding: 10px 12px;
   border: 1px solid var(--nsr-border);
   border-radius: 10px;
@@ -1906,7 +1906,7 @@ input[type=range] { width: 100%; }
 .nsr-group-name-row { display: flex; align-items: center; gap: 4px; }
 .nsr-group-name { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; margin: 0; overflow-wrap: anywhere; }
 .nsr-inline-edit { display: flex; align-items: center; gap: 6px; }
-.nsr-inline-edit .nsr-input { padding: 7px 10px; font-size: 14px; }
+.nsr-inline-edit .nsr-input { padding: 7px 10px; font-size: 16px; }
 .nsr-code-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 .nsr-member-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
