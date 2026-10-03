@@ -34,6 +34,7 @@ import {
   removeGroupMember,
   getGroupMembers,
   setGroupWheel,
+  clearGroupWheel,
   getGroupWheels,
   addChatMessage,
   getChatMessages,
@@ -1045,6 +1046,7 @@ function GroupsView({
 
 export default function NextStepRad() {
   const [loaded, setLoaded] = useState(false);
+  const [storagePersistent, setStoragePersistent] = useState(true);
   const [profile, setProfile] = useState(defaultProfile());
   const [entries, setEntries] = useState([]);
   const [view, setView] = useState("home");
@@ -1080,6 +1082,9 @@ export default function NextStepRad() {
 
   /* --- Laden beim Start --- */
   useEffect(() => {
+    if (typeof window !== "undefined" && window.storage && window.storage.isPersistent === false) {
+      setStoragePersistent(false);
+    }
     (async () => {
       let p = defaultProfile();
       const rawProfile = await storageGet("profile", false);
@@ -1205,9 +1210,15 @@ export default function NextStepRad() {
         /* offline o. Ä., lokale Version bleibt trotzdem gespeichert */
       }
     }
+    if (updated.groupCode || updated.syncCode) {
+      try {
+        await upsertPerson(updated.id, { name: updated.name || "Anonym", syncCode: updated.syncCode || null });
+      } catch (e) {
+        /* Personeneintrag nicht kritisch für die App-Funktion */
+      }
+    }
     if (updated.groupCode) {
       try {
-        await upsertPerson(updated.id, updated.name || "Anonym");
         await updateMemberName(updated.groupCode, updated.id, updated.name || "Anonym");
       } catch (e) {
         /* Namensaktualisierung in der Gruppe nicht kritisch */
@@ -1260,9 +1271,7 @@ export default function NextStepRad() {
     try {
       const code = generateSyncCode();
       const updated = { ...profile, syncCode: code };
-      setProfile(updated);
-      await storageSet("profile", JSON.stringify(updated), false);
-      await setSyncProfile(code, updated);
+      await persistProfile(updated);
       await Promise.all(entries.map((entry) => setSyncEntry(code, entry)));
     } catch (e) {
       setSyncError("Sync konnte nicht gestartet werden. Prüf deine Internetverbindung.");
@@ -1359,15 +1368,26 @@ export default function NextStepRad() {
   }
 
   /* --- Gruppen-Aktionen --- */
+  async function shareLatestEntryToGroup(code) {
+    if (entries.length === 0) return;
+    const latest = entries[entries.length - 1];
+    try {
+      await setGroupWheel(code, profile.id, { scores: latest.scores, nextStep: latest.nextStep });
+    } catch (e) {
+      /* nicht kritisch, der Beitritt selbst hat trotzdem geklappt */
+    }
+  }
+
   async function createGroup() {
     setGroupState((prev) => ({ ...prev, error: "" }));
     try {
       const code = generateGroupCode();
-      await upsertPerson(profile.id, profile.name || "Anonym");
+      await upsertPerson(profile.id, { name: profile.name || "Anonym" });
       await createGroupDoc(code, profile.id, "Gruppe " + code);
       await addGroupMember(code, profile.id, profile.name || "Anonym");
       const updated = { ...profile, groupCode: code };
       await persistProfile(updated);
+      await shareLatestEntryToGroup(code);
       loadGroupData(code);
     } catch (e) {
       setGroupState((prev) => ({ ...prev, error: "Gruppe konnte nicht erstellt werden. Prüf deine Internetverbindung." }));
@@ -1384,10 +1404,11 @@ export default function NextStepRad() {
         setGroupState((prev) => ({ ...prev, error: "Keine Gruppe mit diesem Code gefunden." }));
         return;
       }
-      await upsertPerson(profile.id, profile.name || "Anonym");
+      await upsertPerson(profile.id, { name: profile.name || "Anonym" });
       await addGroupMember(code, profile.id, profile.name || "Anonym");
       const updated = { ...profile, groupCode: code };
       await persistProfile(updated);
+      await shareLatestEntryToGroup(code);
       loadGroupData(code);
     } catch (e) {
       setGroupState((prev) => ({ ...prev, error: "Verbindung zur Gruppe ist fehlgeschlagen. Versuch es noch einmal." }));
@@ -1512,6 +1533,14 @@ export default function NextStepRad() {
       <main className="nsr-main">
         {view === "home" && (
           <div className="nsr-view nsr-home">
+            {!storagePersistent && (
+              <div className="nsr-banner nsr-banner-warning">
+                <span>
+                  Privates Fenster erkannt: Deine Eingaben bleiben nur für diese Sitzung erhalten und sind
+                  weg, sobald du das Fenster schließt.
+                </span>
+              </div>
+            )}
             <p className="nsr-verse">{VERSE}</p>
 
             <Wheel scores={latestScores} colors={profile.colors} onSelectArea={setInfoArea} />
@@ -1731,6 +1760,7 @@ const STYLES = `
   margin: 14px 0;
 }
 .nsr-banner span { flex: 1; text-align: left; }
+.nsr-banner-warning { background: var(--nsr-danger); }
 .nsr-banner-close { background: transparent; border: none; color: #fff; cursor: pointer; display: flex; }
 
 .nsr-btn {
