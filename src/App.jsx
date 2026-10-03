@@ -21,7 +21,7 @@ import {
   ChevronRight,
   ChevronDown,
   Pencil,
-  UserMinus,
+  Trash2,
 } from "lucide-react";
 import {
   upsertPerson,
@@ -964,9 +964,13 @@ function GroupsView({
                     <button
                       className="nsr-icon-btn"
                       title="Aus der Gruppe entfernen"
-                      onClick={() => onRemoveMember(m.id)}
+                      onClick={() => {
+                        if (window.confirm("Willst du diese Person wirklich aus der Gruppe entfernen?")) {
+                          onRemoveMember(m.id);
+                        }
+                      }}
                     >
-                      <UserMinus size={16} />
+                      <Trash2 size={16} />
                     </button>
                   )}
                 </div>
@@ -1315,7 +1319,7 @@ export default function NextStepRad() {
     setSaving(true);
     const weekId = getISOWeekId();
     const scores = {};
-    AREA_ORDER.forEach((k) => (scores[k] = tempScores[k] ?? 0));
+    AREA_ORDER.forEach((k) => (scores[k] = tempScores[k] ?? 5));
     const entry = {
       weekId,
       date: new Date().toISOString(),
