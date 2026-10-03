@@ -21,7 +21,28 @@ import {
   ChevronRight,
   ChevronDown,
   Pencil,
+  UserMinus,
 } from "lucide-react";
+import {
+  upsertPerson,
+  createGroupDoc,
+  getGroupDoc,
+  renameGroupDoc,
+  transferAdmin,
+  addGroupMember,
+  updateMemberName,
+  removeGroupMember,
+  getGroupMembers,
+  setGroupWheel,
+  getGroupWheels,
+  addChatMessage,
+  getChatMessages,
+  setSyncProfile,
+  getSyncProfile,
+  setSyncEntry,
+  getSyncEntries,
+  deleteAllSyncEntries,
+} from "./firestoreApi.js";
 import {
   LineChart,
   Line,
@@ -785,7 +806,18 @@ function SettingsView({
 /* Gruppen                                                                */
 /* ---------------------------------------------------------------------- */
 
-function GroupsView({ profile, colors, onCreateGroup, onJoinGroup, onLeaveGroup, onRenameGroup, groupState, onSendChat }) {
+function GroupsView({
+  profile,
+  colors,
+  onCreateGroup,
+  onJoinGroup,
+  onLeaveGroup,
+  onRenameGroup,
+  onRemoveMember,
+  isAdmin,
+  groupState,
+  onSendChat,
+}) {
   const [codeInput, setCodeInput] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [editingName, setEditingName] = useState(false);
@@ -924,8 +956,20 @@ function GroupsView({ profile, colors, onCreateGroup, onJoinGroup, onLeaveGroup,
                 <span className="nsr-member-name">
                   {m.name || "Anonym"}
                   {m.id === profile.id ? " (du)" : ""}
+                  {m.id === groupState.createdBy && <span className="nsr-admin-badge">Admin</span>}
                 </span>
-                {m.scores && <MiniBars scores={m.scores} colors={colors} />}
+                <div className="nsr-member-actions">
+                  {m.scores && <MiniBars scores={m.scores} colors={colors} />}
+                  {isAdmin && m.id !== profile.id && (
+                    <button
+                      className="nsr-icon-btn"
+                      title="Aus der Gruppe entfernen"
+                      onClick={() => onRemoveMember(m.id)}
+                    >
+                      <UserMinus size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
               {m.nextStep && m.nextStep.text ? (
                 <p className="nsr-member-step">
@@ -1017,6 +1061,13 @@ export default function NextStepRad() {
     loading: false,
     error: "",
   });
+  const profileRef = useRef(profile);
+  const profileIdRef = useRef(profile.id);
+  useEffect(() => {
+    profileRef.current = profile;
+    profileIdRef.current = profile.id;
+  }, [profile]);
+
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncError, setSyncError] = useState("");
   const [showAnleitung, setShowAnleitung] = useState(false);
@@ -1047,23 +1098,15 @@ export default function NextStepRad() {
         }
       }
       if (p.syncCode) {
-        const rawSyncProfile = await storageGet("sync:" + p.syncCode + ":profile", true);
-        const rawSyncEntries = await storageGet("sync:" + p.syncCode + ":entries", true);
-        if (rawSyncProfile) {
-          try {
-            const parsed = JSON.parse(rawSyncProfile);
-            p = { ...p, ...parsed, syncCode: p.syncCode, colors: { ...p.colors, ...(parsed.colors || {}) } };
-          } catch (err) {
-            /* Sync-Profil beschädigt, lokale Version behalten */
+        try {
+          const remoteProfile = await getSyncProfile(p.syncCode);
+          if (remoteProfile) {
+            p = { ...p, ...remoteProfile, syncCode: p.syncCode, colors: { ...p.colors, ...(remoteProfile.colors || {}) } };
           }
-        }
-        if (rawSyncEntries) {
-          try {
-            const parsed = JSON.parse(rawSyncEntries);
-            if (Array.isArray(parsed)) e = parsed;
-          } catch (err) {
-            /* Sync-Historie beschädigt, lokale Version behalten */
-          }
+          const remoteEntries = await getSyncEntries(p.syncCode);
+          if (remoteEntries.length > 0) e = remoteEntries;
+        } catch (err) {
+          /* Sync nicht erreichbar, lokale Version behalten */
         }
       }
       setProfile(p);
@@ -1106,42 +1149,39 @@ export default function NextStepRad() {
   }, [toast]);
 
   /* --- Gruppendaten laden + Polling --- */
-  const loadGroupData = useCallback(async (code) => {
-    if (!code) return;
-    setGroupState((prev) => ({ ...prev, loading: true, error: "" }));
-    const rawMembers = await storageGet("group:" + code + ":members", true);
-    let members = [];
-    if (rawMembers) {
+  const loadGroupData = useCallback(
+    async (code) => {
+      if (!code) return;
+      setGroupState((prev) => ({ ...prev, loading: true, error: "" }));
       try {
-        members = JSON.parse(rawMembers);
-      } catch (e) {
-        members = [];
-      }
-    }
-    const withWheels = await Promise.all(
-      members.map(async (m) => {
-        const raw = await storageGet("group:" + code + ":wheel:" + m.id, true);
-        if (!raw) return { ...m, scores: null, nextStep: null };
-        try {
-          const parsed = JSON.parse(raw);
-          return { ...m, ...parsed };
-        } catch (e) {
-          return { ...m, scores: null, nextStep: null };
+        const groupDoc = await getGroupDoc(code);
+        const members = await getGroupMembers(code);
+        const wheels = await getGroupWheels(code);
+        const withWheels = members.map((m) => ({ ...m, ...(wheels[m.id] || {}) }));
+        const chat = await getChatMessages(code);
+        setGroupState({
+          members: withWheels,
+          chat,
+          name: (groupDoc && groupDoc.name) || "",
+          createdBy: groupDoc ? groupDoc.createdBy : null,
+          loading: false,
+          error: "",
+        });
+        // Falls man selbst nicht mehr in der Mitgliederliste steht (z. B. vom
+        // Admin entfernt), lokal aufräumen statt in einer "Geister-Gruppe" zu bleiben.
+        if (profileIdRef.current && !members.some((m) => m.id === profileIdRef.current)) {
+          const updated = { ...profileRef.current, groupCode: null };
+          setProfile(updated);
+          storageSet("profile", JSON.stringify(updated), false);
+          if (updated.syncCode) setSyncProfile(updated.syncCode, updated).catch(() => {});
+          setToast("Du wurdest aus der Gruppe entfernt.");
         }
-      })
-    );
-    const rawChat = await storageGet("group:" + code + ":chat", true);
-    let chat = [];
-    if (rawChat) {
-      try {
-        chat = JSON.parse(rawChat);
       } catch (e) {
-        chat = [];
+        setGroupState((prev) => ({ ...prev, loading: false, error: "Gruppendaten konnten nicht geladen werden." }));
       }
-    }
-    const rawName = await storageGet("group:" + code + ":name", true);
-    setGroupState({ members: withWheels, chat, name: rawName || "", loading: false, error: "" });
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (view !== "groups" || !profile.groupCode) return;
@@ -1155,16 +1195,25 @@ export default function NextStepRad() {
     setProfile(updated);
     await storageSet("profile", JSON.stringify(updated), false);
     if (updated.syncCode) {
-      await storageSet("sync:" + updated.syncCode + ":profile", JSON.stringify(updated), true);
+      try {
+        await setSyncProfile(updated.syncCode, updated);
+      } catch (e) {
+        /* offline o. Ä., lokale Version bleibt trotzdem gespeichert */
+      }
+    }
+    if (updated.groupCode) {
+      try {
+        await upsertPerson(updated.id, updated.name || "Anonym");
+        await updateMemberName(updated.groupCode, updated.id, updated.name || "Anonym");
+      } catch (e) {
+        /* Namensaktualisierung in der Gruppe nicht kritisch */
+      }
     }
   }
 
   async function persistEntries(updatedEntries) {
     setEntries(updatedEntries);
     await storageSet("entries", JSON.stringify(updatedEntries), false);
-    if (profile.syncCode) {
-      await storageSet("sync:" + profile.syncCode + ":entries", JSON.stringify(updatedEntries), true);
-    }
   }
 
   /* --- Profil aktualisieren + persistieren --- */
@@ -1190,6 +1239,13 @@ export default function NextStepRad() {
   async function resetAllData() {
     if (!window.confirm("Wirklich alle gespeicherten Bewertungen und Next Steps löschen?")) return;
     await persistEntries([]);
+    if (profile.syncCode) {
+      try {
+        await deleteAllSyncEntries(profile.syncCode);
+      } catch (e) {
+        /* Sync nicht erreichbar, lokale Löschung hat trotzdem geklappt */
+      }
+    }
     setToast("Daten gelöscht");
   }
 
@@ -1197,10 +1253,16 @@ export default function NextStepRad() {
   async function startSync() {
     setSyncBusy(true);
     setSyncError("");
-    const code = generateSyncCode();
-    const updated = { ...profile, syncCode: code };
-    await persistProfile(updated);
-    await storageSet("sync:" + code + ":entries", JSON.stringify(entries), true);
+    try {
+      const code = generateSyncCode();
+      const updated = { ...profile, syncCode: code };
+      setProfile(updated);
+      await storageSet("profile", JSON.stringify(updated), false);
+      await setSyncProfile(code, updated);
+      await Promise.all(entries.map((entry) => setSyncEntry(code, entry)));
+    } catch (e) {
+      setSyncError("Sync konnte nicht gestartet werden. Prüf deine Internetverbindung.");
+    }
     setSyncBusy(false);
   }
 
@@ -1209,42 +1271,29 @@ export default function NextStepRad() {
     if (!code) return;
     setSyncBusy(true);
     setSyncError("");
-    const rawSyncProfile = await storageGet("sync:" + code + ":profile", true);
-    const rawSyncEntries = await storageGet("sync:" + code + ":entries", true);
-    let remoteProfile = null;
-    let remoteEntries = null;
-    if (rawSyncProfile) {
-      try {
-        remoteProfile = JSON.parse(rawSyncProfile);
-      } catch (e) {
-        remoteProfile = null;
+    try {
+      const remoteProfile = await getSyncProfile(code);
+      const remoteEntries = await getSyncEntries(code);
+      if (!remoteProfile && remoteEntries.length === 0) {
+        setSyncError("Kein Sync-Code mit gespeicherten Daten gefunden. Bitte Code prüfen.");
+        setSyncBusy(false);
+        return;
       }
+      const merged = {
+        ...profile,
+        ...(remoteProfile || {}),
+        syncCode: code,
+        colors: { ...profile.colors, ...((remoteProfile && remoteProfile.colors) || {}) },
+      };
+      setProfile(merged);
+      setEntries(remoteEntries);
+      await storageSet("profile", JSON.stringify(merged), false);
+      await storageSet("entries", JSON.stringify(remoteEntries), false);
+      setToast("Daten übernommen");
+    } catch (e) {
+      setSyncError("Verbindung fehlgeschlagen. Prüf deine Internetverbindung.");
     }
-    if (rawSyncEntries) {
-      try {
-        remoteEntries = JSON.parse(rawSyncEntries);
-      } catch (e) {
-        remoteEntries = null;
-      }
-    }
-    if (!remoteProfile && !remoteEntries) {
-      setSyncError("Kein Sync-Code mit gespeicherten Daten gefunden. Bitte Code prüfen.");
-      setSyncBusy(false);
-      return;
-    }
-    const merged = {
-      ...profile,
-      ...(remoteProfile || {}),
-      syncCode: code,
-      colors: { ...profile.colors, ...((remoteProfile && remoteProfile.colors) || {}) },
-    };
-    const mergedEntries = Array.isArray(remoteEntries) ? remoteEntries : entries;
-    setProfile(merged);
-    setEntries(mergedEntries);
-    await storageSet("profile", JSON.stringify(merged), false);
-    await storageSet("entries", JSON.stringify(mergedEntries), false);
     setSyncBusy(false);
-    setToast("Daten übernommen");
   }
 
   async function stopSync() {
@@ -1278,17 +1327,23 @@ export default function NextStepRad() {
     );
     await persistEntries(newEntries);
 
+    if (profile.syncCode) {
+      try {
+        await setSyncEntry(profile.syncCode, entry);
+      } catch (e) {
+        /* Sync nicht erreichbar, lokale Speicherung hat trotzdem geklappt */
+      }
+    }
+
     if (profile.groupCode && shareWithGroup) {
-      await storageSet(
-        "group:" + profile.groupCode + ":wheel:" + profile.id,
-        JSON.stringify({
-          name: profile.name || "Anonym",
+      try {
+        await setGroupWheel(profile.groupCode, profile.id, {
           scores,
           nextStep: { area: nextStepArea, text: nextStepText.trim() },
-          updatedAt: Date.now(),
-        }),
-        true
-      );
+        });
+      } catch (e) {
+        /* Teilen fehlgeschlagen, eigener Eintrag ist trotzdem gespeichert */
+      }
     }
 
     const updatedProfile = { ...profile, lastNotifiedWeek: weekId };
@@ -1301,57 +1356,71 @@ export default function NextStepRad() {
 
   /* --- Gruppen-Aktionen --- */
   async function createGroup() {
-    const code = generateGroupCode();
-    await joinGroupByCode(code);
+    setGroupState((prev) => ({ ...prev, error: "" }));
+    try {
+      const code = generateGroupCode();
+      await upsertPerson(profile.id, profile.name || "Anonym");
+      await createGroupDoc(code, profile.id, "Gruppe " + code);
+      await addGroupMember(code, profile.id, profile.name || "Anonym");
+      const updated = { ...profile, groupCode: code };
+      await persistProfile(updated);
+      loadGroupData(code);
+    } catch (e) {
+      setGroupState((prev) => ({ ...prev, error: "Gruppe konnte nicht erstellt werden. Prüf deine Internetverbindung." }));
+    }
   }
 
   async function joinGroup(rawCode) {
     const code = normalizeCode(rawCode);
     if (!code) return;
-    await joinGroupByCode(code);
-  }
-
-  async function joinGroupByCode(code) {
     setGroupState((prev) => ({ ...prev, error: "" }));
-    const raw = await storageGet("group:" + code + ":members", true);
-    let members = [];
-    if (raw) {
-      try {
-        members = JSON.parse(raw);
-      } catch (e) {
-        members = [];
-      }
-    }
-    if (!members.find((m) => m.id === profile.id)) {
-      members.push({ id: profile.id, name: profile.name || "Anonym" });
-      const ok = await storageSet("group:" + code + ":members", JSON.stringify(members), true);
-      if (!ok) {
-        setGroupState((prev) => ({ ...prev, error: "Verbindung zur Gruppe ist fehlgeschlagen. Versuch es noch einmal." }));
+    try {
+      const groupDoc = await getGroupDoc(code);
+      if (!groupDoc) {
+        setGroupState((prev) => ({ ...prev, error: "Keine Gruppe mit diesem Code gefunden." }));
         return;
       }
+      await upsertPerson(profile.id, profile.name || "Anonym");
+      await addGroupMember(code, profile.id, profile.name || "Anonym");
+      const updated = { ...profile, groupCode: code };
+      await persistProfile(updated);
+      loadGroupData(code);
+    } catch (e) {
+      setGroupState((prev) => ({ ...prev, error: "Verbindung zur Gruppe ist fehlgeschlagen. Versuch es noch einmal." }));
     }
-    const updated = { ...profile, groupCode: code };
-    await persistProfile(updated);
-    loadGroupData(code);
   }
 
   async function leaveGroup() {
     const code = profile.groupCode;
     if (code) {
-      const raw = await storageGet("group:" + code + ":members", true);
-      if (raw) {
-        try {
-          let members = JSON.parse(raw);
-          members = members.filter((m) => m.id !== profile.id);
-          await storageSet("group:" + code + ":members", JSON.stringify(members), true);
-        } catch (e) {
-          /* nichts zu tun */
+      try {
+        const wasAdmin = groupState.createdBy === profile.id;
+        await removeGroupMember(code, profile.id);
+        if (wasAdmin) {
+          const remaining = await getGroupMembers(code);
+          if (remaining.length > 0) {
+            const next = remaining.slice().sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))[0];
+            await transferAdmin(code, next.id);
+          }
         }
+      } catch (e) {
+        /* nichts zu tun, lokal verlassen wir trotzdem */
       }
     }
     const updated = { ...profile, groupCode: null };
     await persistProfile(updated);
-    setGroupState({ members: [], chat: [], name: "", loading: false, error: "" });
+    setGroupState({ members: [], chat: [], name: "", createdBy: null, loading: false, error: "" });
+  }
+
+  async function removeMember(memberId) {
+    const code = profile.groupCode;
+    if (!code) return;
+    try {
+      await removeGroupMember(code, memberId);
+      loadGroupData(code);
+    } catch (e) {
+      setGroupState((prev) => ({ ...prev, error: "Mitglied konnte nicht entfernt werden." }));
+    }
   }
 
   async function renameGroup(rawName) {
@@ -1359,8 +1428,9 @@ export default function NextStepRad() {
     if (!code) return;
     const name = (rawName || "").trim().slice(0, 40);
     setGroupState((prev) => ({ ...prev, name }));
-    const ok = await storageSet("group:" + code + ":name", name, true);
-    if (!ok) {
+    try {
+      await renameGroupDoc(code, name);
+    } catch (e) {
       setGroupState((prev) => ({ ...prev, error: "Name konnte nicht gespeichert werden." }));
     }
   }
@@ -1368,27 +1438,11 @@ export default function NextStepRad() {
   async function sendChatMessage(text) {
     const code = profile.groupCode;
     if (!code || !text.trim()) return;
-    const raw = await storageGet("group:" + code + ":chat", true);
-    let chat = [];
-    if (raw) {
-      try {
-        chat = JSON.parse(raw);
-      } catch (e) {
-        chat = [];
-      }
-    }
-    chat.push({
-      id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
-      memberId: profile.id,
-      name: profile.name || "Anonym",
-      text: text.trim(),
-      ts: Date.now(),
-    });
-    if (chat.length > 200) chat = chat.slice(chat.length - 200);
-    const ok = await storageSet("group:" + code + ":chat", JSON.stringify(chat), true);
-    if (ok) {
+    try {
+      await addChatMessage(code, profile.id, profile.name || "Anonym", text.trim());
+      const chat = await getChatMessages(code);
       setGroupState((prev) => ({ ...prev, chat }));
-    } else {
+    } catch (e) {
       setGroupState((prev) => ({ ...prev, error: "Nachricht konnte nicht gesendet werden." }));
     }
   }
@@ -1518,6 +1572,8 @@ export default function NextStepRad() {
               onJoinGroup={joinGroup}
               onLeaveGroup={leaveGroup}
               onRenameGroup={renameGroup}
+              onRemoveMember={removeMember}
+              isAdmin={groupState.createdBy === profile.id}
               groupState={groupState}
               onSendChat={sendChatMessage}
             />
@@ -1738,7 +1794,7 @@ const STYLES = `
 .nsr-input, .nsr-select, .nsr-textarea {
   width: 100%;
   font-family: 'Inter', sans-serif;
-  font-size: 16px;
+  font-size: 14px;
   padding: 10px 12px;
   border: 1px solid var(--nsr-border);
   border-radius: 10px;
@@ -1906,10 +1962,23 @@ input[type=range] { width: 100%; }
 .nsr-group-name-row { display: flex; align-items: center; gap: 4px; }
 .nsr-group-name { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; margin: 0; overflow-wrap: anywhere; }
 .nsr-inline-edit { display: flex; align-items: center; gap: 6px; }
-.nsr-inline-edit .nsr-input { padding: 7px 10px; font-size: 16px; }
+.nsr-inline-edit .nsr-input { padding: 7px 10px; font-size: 14px; }
 .nsr-code-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 .nsr-member-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nsr-member-actions { display: flex; align-items: center; gap: 6px; }
+.nsr-admin-badge {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nsr-accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
 .nsr-member-name { font-weight: 600; font-size: 14px; }
 .nsr-member-step { font-size: 13.5px; margin: 10px 0 0; line-height: 1.5; }
 
