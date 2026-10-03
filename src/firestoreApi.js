@@ -40,12 +40,12 @@ function getDb() {
 
 /* ---------------------------- Personen --------------------------------- */
 
-export async function upsertPerson(personId, name) {
-  await setDoc(
-    doc(getDb(), "people", personId),
-    { name: name || "Anonym", updatedAt: Date.now() },
-    { merge: true }
-  );
+export async function upsertPerson(personId, data) {
+  const payload = { name: (data && data.name) || "Anonym", updatedAt: Date.now() };
+  if (data && data.syncCode !== undefined) {
+    payload.syncCode = data.syncCode;
+  }
+  await setDoc(doc(getDb(), "people", personId), payload, { merge: true });
 }
 
 /* ----------------------------- Gruppen ---------------------------------- */
@@ -107,6 +107,14 @@ export async function setGroupWheel(code, personId, data) {
     ...data,
     updatedAt: Date.now(),
   });
+}
+
+export async function clearGroupWheel(code, personId) {
+  try {
+    await deleteDoc(doc(getDb(), "groups", code, "wheels", personId));
+  } catch (e) {
+    /* kein geteiltes Rad vorhanden, nichts zu tun */
+  }
 }
 
 export async function getGroupWheels(code) {
