@@ -1261,6 +1261,10 @@ export default function NextStepRad() {
         /* Sync nicht erreichbar, lokale Löschung hat trotzdem geklappt */
       }
     }
+    if (profile.groupCode) {
+      await clearGroupWheel(profile.groupCode, profile.id);
+      if (view === "groups") loadGroupData(profile.groupCode);
+    }
     setToast("Daten gelöscht");
   }
 
@@ -1315,9 +1319,10 @@ export default function NextStepRad() {
 
   /* --- Check-in Flow --- */
   function openCheckin() {
+    const currentWeekEntry = entries.find((e) => e.weekId === currentWeekId);
     setTempScores({ ...latestScores });
-    setNextStepArea(null);
-    setNextStepText("");
+    setNextStepArea(currentWeekEntry ? currentWeekEntry.nextStep.area : null);
+    setNextStepText(currentWeekEntry ? currentWeekEntry.nextStep.text : "");
     setShareWithGroup(true);
     setCheckinStep(1);
     setCheckinOpen(true);
