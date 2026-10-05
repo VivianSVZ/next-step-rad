@@ -1,16 +1,3 @@
-// Trag hier deine eigenen Firebase-Zugangsdaten ein, damit die Gruppen-Funktion
-// (geteiltes Rad + Chat) über Geräte und Personen hinweg funktioniert.
-//
-// So kommst du an die Werte (kostenlos, dauert ca. 5 Minuten):
-// 1. Gehe zu https://console.firebase.google.com und erstelle ein neues Projekt.
-// 2. Klicke in der Projektübersicht auf das Web-Symbol (</>), um eine "Web-App" hinzuzufügen.
-// 3. Firebase zeigt dir danach genau dieses Objekt an – kopier es hierher.
-// 4. Aktiviere im Menü links "Firestore Database" -> "Datenbank erstellen"
-//    (Standardmodus reicht; Sicherheitsregeln siehe README).
-//
-// Ohne diese Angaben läuft die App trotzdem einwandfrei – nur die Gruppen-Funktion
-// bleibt deaktiviert und zeigt einen entsprechenden Hinweis an.
-
 export const firebaseConfig = {
   apiKey: "AIzaSyCaq6HwJCWmdu6Sj6dFHiC3ybgb1FiWlxw",
   authDomain: "next-step-rad.firebaseapp.com",
