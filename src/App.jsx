@@ -1132,24 +1132,6 @@ export default function NextStepRad() {
   const todayIdx = getWeekdayIndexMonday0();
   const dueForCheckin = todayIdx >= profile.reminderWeekday && !hasCheckedInThisWeek;
 
-  /* --- Browser-Benachrichtigung, wenn App offen ist und fällig --- */
-  useEffect(() => {
-    if (!loaded || !profile.notifyEnabled || !dueForCheckin) return;
-    if (profile.lastNotifiedWeek === currentWeekId) return;
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission === "granted") {
-      try {
-        new Notification("Next Step", {
-          body: "Zeit für dein wöchentliches Update. Wie steht's um deine 5 Bereiche?",
-        });
-      } catch (e) {
-        /* Benachrichtigung fehlgeschlagen, ignorieren */
-      }
-      const updated = { ...profile, lastNotifiedWeek: currentWeekId };
-      persistProfile(updated);
-    }
-  }, [loaded, profile.notifyEnabled, dueForCheckin, currentWeekId]);
-
   /* --- Toast automatisch ausblenden --- */
   useEffect(() => {
     if (!toast) return;
@@ -1176,8 +1158,6 @@ export default function NextStepRad() {
           loading: false,
           error: "",
         });
-        // Falls man selbst nicht mehr in der Mitgliederliste steht (z. B. vom
-        // Admin entfernt), lokal aufräumen statt in einer "Geister-Gruppe" zu bleiben.
         if (profileIdRef.current && !members.some((m) => m.id === profileIdRef.current)) {
           const updated = { ...profileRef.current, groupCode: null };
           setProfile(updated);
