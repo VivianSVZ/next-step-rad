@@ -91,7 +91,7 @@ export async function removeGroupMember(code, personId) {
   try {
     await deleteDoc(doc(getDb(), "groups", code, "wheels", personId));
   } catch (e) {
-    /* wenn kein Rad vorhanden, ignorieren */
+    /* kein Rad vorhanden, ignorieren */
   }
 }
 
@@ -113,7 +113,7 @@ export async function clearGroupWheel(code, personId) {
   try {
     await deleteDoc(doc(getDb(), "groups", code, "wheels", personId));
   } catch (e) {
-    /* wenn kein Rad vorhanden, ignorieren */
+    /* kein geteiltes Rad vorhanden, nichts zu tun */
   }
 }
 
